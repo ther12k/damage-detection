@@ -9,7 +9,11 @@ from pathlib import Path
 from itertools import chain
 from src.app import DamageDetection
 from .utils import logging, draw_rectangle, datetime_format, sending_file
-from config import ID_DEVICE, GATE, IP_API, END_POINT
+
+from config import DEVICE_ID, GATE_ID, END_POINT,DATETIME_FORMAT,DELAY_IN_SECONDS,SEND_TIMEOUT,READ_TIMEOUT
+import requests
+import datetime
+from requests.exceptions import HTTPError
 
 class MainProcess:
     '''
@@ -39,7 +43,7 @@ class MainProcess:
                 extract_result(results=results, min_confidence=threshold)
         return result
     
-    def __save_and_sending_file(self, file, id_file):
+    """ def __save_and_sending_file(self, file, id_file):
         '''
             Send image to server
             Args:
@@ -93,9 +97,36 @@ class MainProcess:
                 return True
         except:
             logging.error('Cannot send data to API')
-            return False
-        
-    def main(self, image, id=None):
+            return False """
+
+    def send_data(self,result, file_path, start_time, end_time): 
+        try:
+            url= END_POINT+'containerdamage/'
+            print(url)
+            json_data = {
+                'gateId': GATE_ID,
+                'deviceId': DEVICE_ID,
+                'result': result,
+			    'confidence': 0,
+                'filePath': file_path,
+                'startTime': start_time.strftime(DATETIME_FORMAT),
+                'EndTime': end_time.strftime(DATETIME_FORMAT),
+                'delayInSeconds' : DELAY_IN_SECONDS,
+            }
+            logging.info(json_data)
+            headers = {'Content-type': 'application/json', 'Accept': 'text/plain'}
+            r = requests.post(url=url,json=json_data,headers=headers,timeout=(SEND_TIMEOUT,READ_TIMEOUT))
+            logging.info(r)
+            ret = r.json()
+            return ret
+        except HTTPError as e:
+            logging.info(e.response.text)
+            return e.response.text
+        except:
+            logging.info('send error')
+            return 'send error'
+
+    def main(self, image, start_time,file_path):
         image_ori = image.copy()
         if not id: id = int(time.time())
         # Detection seal
@@ -117,4 +148,6 @@ class MainProcess:
         # # send data to API
         # try: self.__send_api(server_path, start_time=id, end_time=id)
         # except: pass
+        end_time = datetime.now()
+        self.send_data(0,file_path,start_time,end_time)
         return image_drawed
